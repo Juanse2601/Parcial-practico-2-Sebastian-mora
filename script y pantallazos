@@ -129,3 +129,87 @@ begin
   declare v_total_before decimal(18,2);
   declare v_total_after decimal(18,2);
   declare v_incremento decimal(18,2);
+
+
+  start transaction;
+
+  select presupuesto into v_pres
+    from departamento
+   where id_departamento = p_dep_id
+   for update;
+
+  if v_pres is null then
+    rollback;
+    signal sqlstate '45000' set message_text = 'Departamento no existe';
+  else
+    if v_pres > 10000000.00 then
+
+      select sum(salario) into v_total_before from empleado where id_departamento = p_dep_id;
+      if v_total_before is null then
+        set v_total_before = 0;
+      end if;
+
+      update empleado
+         set salario = round(salario * (1 + p_porcentaje/100), 2)
+       where id_departamento = p_dep_id;
+
+      select sum(salario) into v_total_after from empleado where id_departamento = p_dep_id;
+      if v_total_after is null then
+        set v_total_after = 0;
+      end if;
+
+      set v_incremento = v_total_after - v_total_before;
+
+      update departamento
+         set presupuesto = presupuesto - v_incremento
+       where id_departamento = p_dep_id;
+
+      select presupuesto into v_pres from departamento where id_departamento = p_dep_id;
+      if v_pres < 0 then
+        rollback;
+        signal sqlstate '45000' set message_text = 'Ajuste produce presupuesto negativo. Operacion revertida.';
+      else
+        commit;
+      end if;
+
+    else
+      rollback;
+      signal sqlstate '45000' set message_text = 'Presupuesto del departamento no supera 10.000.000. No se aplica aumento.';
+    end if;
+  end if;
+end$$
+delimiter ;
+
+
+estado inicial
+select database() as base_de_datos;
+select id_departamento, nombre, presupuesto from departamento order by id_departamento;
+select id_empleado, nombre, cargo, salario, id_departamento, fecha_ingreso from empleado order by id_empleado;
+
+totales de salarios por departamento
+select d.id_departamento, d.nombre,
+  (select if(sum(e.salario) is null, 0, sum(e.salario)) from empleado e where e.id_departamento = d.id_departamento) as total_salarios
+from departamento d order by d.id_departamento;
+
+ procedimiento ejemplo (aumenta 10% al departamento 1)
+call aumentar_salario(1, 10);
+
+estado posterior al aumento
+select id_empleado, nombre, salario, id_departamento from empleado where id_departamento = 1 order by id_empleado;
+select id_departamento, nombre, presupuesto from departamento where id_departamento = 1;
+select id_historial, id_empleado, id_departamento, salario_ant, salario_nuevo, fecha_cambio, motivo
+from historialcambios order by fecha_cambio desc;
+
+prueba forzada de rollback 
+insert into departamento (nombre, presupuesto) values ('depprueba', 100000.00);
+set @dep_temp = last_insert_id();
+insert into empleado (nombre, cargo, salario, id_departamento, fecha_ingreso)
+values ('Test A','temp',90000.00,@dep_temp,'2023-01-01'),
+       ('Test B','temp',90000.00,@dep_temp,'2023-01-02');
+
+call aumentar_salario(@dep_temp, 10);
+
+verificaciones finales
+select * from departamento;
+select * from empleado;
+select * from historialcambios order by fecha_cambio desc;
