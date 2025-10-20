@@ -110,7 +110,7 @@ create trigger trg_historial_salario
 after update on Empleado
 for each row
 begin
-  if old.salario <> new.salario then
+  if old.salario != new.salario then
     insert into HistorialCambios (id_empleado, id_departamento, salario_ant, salario_nuevo, motivo)
     values (new.id_empleado, new.id_departamento, old.salario, new.salario, 'Incremento por AumentarSalario');
   end if;
@@ -119,7 +119,6 @@ DELIMITER ;
 
 /*procedimiento*/
 DELIMITER $$
-drop procedure if exists AumentarSalario$$
 create procedure AumentarSalario(
   in p_dep_id int,
   in p_porcentaje decimal(5,2)
