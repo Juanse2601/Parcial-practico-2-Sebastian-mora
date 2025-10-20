@@ -180,26 +180,25 @@ end$$
 delimiter ;
 
 
-estado inicial
-select database() as base_de_datos;
+#estado inicial
 select id_departamento, nombre, presupuesto from departamento order by id_departamento;
 select id_empleado, nombre, cargo, salario, id_departamento, fecha_ingreso from empleado order by id_empleado;
 
-totales de salarios por departamento
+#totales de salarios por departamento
 select d.id_departamento, d.nombre,
   (select if(sum(e.salario) is null, 0, sum(e.salario)) from empleado e where e.id_departamento = d.id_departamento) as total_salarios
 from departamento d order by d.id_departamento;
 
- procedimiento ejemplo (aumenta 10% al departamento 1)
+#procedimiento ejemplo (aumenta 10% al departamento 1)
 call aumentar_salario(1, 10);
 
-estado posterior al aumento
+#estado posterior al aumento
 select id_empleado, nombre, salario, id_departamento from empleado where id_departamento = 1 order by id_empleado;
 select id_departamento, nombre, presupuesto from departamento where id_departamento = 1;
 select id_historial, id_empleado, id_departamento, salario_ant, salario_nuevo, fecha_cambio, motivo
 from historialcambios order by fecha_cambio desc;
 
-prueba forzada de rollback 
+#prueba forzada de rollback
 insert into departamento (nombre, presupuesto) values ('depprueba', 100000.00);
 set @dep_temp = last_insert_id();
 insert into empleado (nombre, cargo, salario, id_departamento, fecha_ingreso)
@@ -208,7 +207,7 @@ values ('Test A','temp',90000.00,@dep_temp,'2023-01-01'),
 
 call aumentar_salario(@dep_temp, 10);
 
-verificaciones finales
+#verificaciones finales
 select * from departamento;
 select * from empleado;
 select * from historialcambios order by fecha_cambio desc;
