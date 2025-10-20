@@ -1,0 +1,131 @@
+create database BD_TechNova;
+use BD_TechNova;
+
+
+CREATE TABLE Departamento (
+id_departamento INT AUTO_INCREMENT PRIMARY KEY,
+nombre VARCHAR(100) NOT NULL,
+presupuesto DECIMAL(12,2) CHECK (presupuesto > 0)
+);
+
+CREATE TABLE Empleado (
+id_empleado INT AUTO_INCREMENT PRIMARY KEY,
+nombre VARCHAR(100),
+cargo VARCHAR(50),
+salario DECIMAL(10,2) CHECK (salario > 0),
+id_departamento INT,
+fecha_ingreso DATE,
+FOREIGN KEY (id_departamento) REFERENCES Departamento(id_departamento)
+);
+
+
+CREATE TABLE Proyecto (
+id_proyecto INT AUTO_INCREMENT PRIMARY KEY,
+nombre VARCHAR(100),
+fecha_inicio DATE,
+presupuesto DECIMAL(14,2),
+id_departamento INT,
+FOREIGN KEY (id_departamento) REFERENCES Departamento(id_departamento)
+);
+
+
+CREATE TABLE Asignacion (
+id_asignacion INT AUTO_INCREMENT PRIMARY KEY,
+id_empleado INT,
+id_proyecto INT,
+horas_trabajadas INT CHECK (horas_trabajadas >= 0),
+FOREIGN KEY (id_empleado) REFERENCES Empleado(id_empleado),
+FOREIGN KEY (id_proyecto) REFERENCES Proyecto(id_proyecto)
+);
+
+
+create table HistorialCambios (
+  id_historial int auto_increment primary key,
+  id_empleado int,
+  id_departamento int,
+  salario_ant decimal(12,2),
+  salario_nuevo decimal(12,2),
+  fecha_cambio datetime default current_timestamp,
+  motivo varchar(250),
+  foreign key(id_empleado) references Empleado(id_empleado)
+);
+
+alter table HistorialCambios
+add motivo varchar(250);
+
+insert into Departamento (nombre, presupuesto) values
+  ('Desarrollo', 15000000.00),
+  ('Soporte', 8000000.00),
+  ('Investigacion', 12000000.00);
+  
+insert into Empleado (nombre, cargo, salario, id_departamento, fecha_ingreso) values
+  ('Angel Amaya', 'Dev Senior', 4500000.00, 1, '2022-03-01'),
+  ('Felipe Poveda', 'Dev Junior', 2200000.00, 1, '2023-01-15'),
+  ('Tomas Ruiz', 'Soporte', 1800000.00, 2, '2021-08-20'),
+  ('Sebastian Mora', 'Investigador', 3600000.00, 3, '2020-09-10'),
+  ('Jaime Gamba', 'Dev', 2500000.00, 1, '2024-02-05');
+  
+  
+insert into Proyecto (nombre, fecha_inicio, presupuesto, id_departamento) values
+  ('Proyecto 1', '2024-01-01', 5000000.00, 1),
+  ('Proyecto 2', '2023-05-01', 2000000.00, 2),
+  ('Proyecto 3', '2024-07-01', 3000000.00, 3);
+  
+
+insert into Asignacion (id_empleado, id_proyecto, horas_trabajadas) values
+  (1, 1, 120),
+  (2, 1, 90),
+  (3, 2, 60),
+  (4, 3, 150),
+  (5, 1, 30);
+  
+  
+  /*funcion*/
+  
+DELIMITER $$
+create function TotalSalarios(p_dep_id int)
+returns decimal(18,2)
+deterministic
+begin
+    declare v_total decimal(18,2);
+
+    select sum(salario)
+    into v_total
+    from Empleado
+    where id_departamento = p_dep_id;
+
+    if v_total is null then
+        set v_total = 0;
+    end if;
+
+    return v_total;
+end$$
+DELIMITER ;
+
+
+/*trigger*/
+
+DELIMITER $$
+create trigger trg_historial_salario
+after update on Empleado
+for each row
+begin
+  if old.salario <> new.salario then
+    insert into HistorialCambios (id_empleado, id_departamento, salario_ant, salario_nuevo, motivo)
+    values (new.id_empleado, new.id_departamento, old.salario, new.salario, 'Incremento por AumentarSalario');
+  end if;
+end$$
+DELIMITER ;
+
+/*procedimiento*/
+DELIMITER $$
+drop procedure if exists AumentarSalario$$
+create procedure AumentarSalario(
+  in p_dep_id int,
+  in p_porcentaje decimal(5,2)
+)
+begin
+  declare v_pres decimal(18,2);
+  declare v_total_before decimal(18,2);
+  declare v_total_after decimal(18,2);
+  declare v_incremento decimal(18,2);
